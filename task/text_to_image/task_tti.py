@@ -40,10 +40,19 @@ async def _save_images(attachments: list[Attachment]):
     #  1. Create DIAL bucket client
     #  2. Iterate through Images from attachments, download them and then save here
     #  3. Print confirmation that image has been saved locally
-    raise NotImplementedError
+    async with DialBucketClient(api_key=API_KEY, base_url=DIAL_URL) as client:
+        for attachment in attachments:
+            if not attachment.url:
+                continue
+            content = await client.get_file(attachment.url)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"generated_{timestamp}.png"
+            with open(filename, "wb") as f:
+                f.write(content)
+            print(f"Image saved to {filename}")
 
 
-def start() -> None:
+async def start() -> None:
     # TODO:
     #  1. Create DialModelClient
     #  2. Generate image for "Sunny day on Bali"
@@ -51,7 +60,29 @@ def start() -> None:
     #  4. Try to configure the picture for output via `custom_fields` parameter.
     #    - Documentation: See `custom_fields`. https://dialx.ai/dial_api#operation/sendChatCompletionRequest
     #  5. Test it with the 'imagegeneration@005' (Google image generation model)
-    raise NotImplementedError
+    client = DialModelClient(
+        endpoint=DIAL_CHAT_COMPLETIONS_ENDPOINT,
+        deployment_name="dall-e-3",
+        api_key=API_KEY
+    )
+
+    messages = [Message(role=Role.USER, content="Sunny day on Bali")]
+
+    custom_fields = {
+        "size": Size.width_rectangle,
+        "quality": Quality.hd,
+        "style": Style.natural
+    }
+
+    response = client.get_completion(messages=messages, custom_fields=custom_fields)
+
+    print(f"\nAI Response: {response.content}")
+
+    if response.custom_content and response.custom_content.attachments:
+        await _save_images(response.custom_content.attachments)
+    else:
+        print("No attachments found in response.")
 
 
-start()
+if __name__ == "__main__":
+    asyncio.run(start())
